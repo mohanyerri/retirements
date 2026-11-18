@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retirement Planner (India)</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Retirement Planner <span>India</span></h1>
+  <div class="actions">
+    <button id="btnSaveScenario">Save scenario</button>
+    <button id="btnExportJson">Export JSON</button>
+    <label class="btn">Import JSON<input type="file" id="fileImport" accept=".json,application/json" hidden></label>
+    <button id="btnCsv">Export CSV</button>
+    <button id="btnPrint">Print / PDF</button>
+    <button id="btnReset" class="danger">Reset</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ======================= INPUTS ======================= -->
+  <aside class="inputs">
+    <details open>
+      <summary>1. Profile &amp; horizon</summary>
+      <div class="grid">
+        <label>Current age<input type="number" data-path="profile.currentAge" min="18" max="100" step="1"></label>
+        <label>Retirement age<input type="number" data-path="profile.retireAge" min="18" max="100" step="1"></label>
+        <label>Plan until age<input type="number" data-path="profile.planUntil" min="50" max="110" step="1"><small>90–95 recommended</small></label>
+        <label>Years to project (override)<input type="number" data-path="profile.yearsOverride" min="0" max="80" step="1"><small>0 = automatic</small></label>
+      </div>
+      <label class="check"><input type="checkbox" data-path="profile.useSpouse"> Plan for a spouse as well</label>
+      <div class="grid" data-show="profile.useSpouse=true">
+        <label>Spouse's current age<input type="number" data-path="profile.spouseAge" step="1"></label>
+        <label>Spouse plan until age<input type="number" data-path="profile.spousePlanUntil" step="1"></label>
+      </div>
+      <p class="help">The horizon runs until the later of the two plan-until ages. Women in India outlive men by about 3 years on average, so plan for the survivor.</p>
+    </details>
+
+    <details open>
+      <summary>2. Current corpus &amp; allocation</summary>
+      <div class="grid">
+        <label>Input mode
+          <select data-path="allocMode">
+            <option value="amounts">₹ amount per asset</option>
+            <option value="percent">Total corpus + % split</option>
+          </select>
+        </label>
+        <label data-show="allocMode=percent">Total corpus ₹<input type="number" class="money" data-path="totalCorpus" step="100000"><small class="hint"></small></label>
+      </div>
+      <div id="assetsList"></div>
+      <div id="allocSummary" class="allocsummary"></div>
+      <p class="help"><b>Return</b> is the long-run CAGR you expect, after which the <b>fee</b> is deducted. <b>Volatility</b> drives the Monte Carlo (Nifty about 18%, debt funds 2–4%, FD 0). <b>Cost %</b> is the share of today's value that is your original investment, so only gains are taxed. <b>Bucket</b> is used only by the bucket strategy. <b>Locked till</b> covers lock-ins such as PPF maturity or tax-saver FDs. Leave out your own home and the emergency fund.</p>
+    </details>
+
+    <details open>
+      <summary>3. Spending in retirement</summary>
+      <div class="grid">
+        <label>Monthly living expenses (today's ₹)<input type="number" class="money" data-path="spending.monthly" step="1000"><small class="hint"></small></label>
+        <label>Inflation % / yr<input type="number" data-path="spending.inflation" step="0.25"></label>
+        <label>Medical out-of-pocket / month (today's ₹)<input type="number" class="money" data-path="spending.medicalMonthly" step="500"><small class="hint"></small></label>
+        <label>Medical inflation % / yr<input type="number" data-path="spending.medicalInflation" step="0.5"></label>
+        <label>Health-insurance premium / year (today's ₹)<input type="number" class="money" data-path="spending.premiumAnnual" step="5000"><small class="hint"></small></label>
+        <label>Premium inflation % / yr<input type="number" data-path="spending.premiumInflation" step="0.5"></label>
+      </div>
+      <p class="help">Spending starts at retirement and steps up with inflation once a year. Medical costs and premiums usually rise much faster than general inflation, and premiums jump at age bands such as 61+ and 71+.</p>
+      <h4>Spending phases (go-go → slow-go → no-go)</h4>
+      <div id="phasesList"></div>
+      <p class="help">Travel and lifestyle spending usually falls in your 70s and 80s, while medical spending keeps rising. The phases apply only to living expenses.</p>
+    </details>
+
+    <details>
+      <summary>4. Saving until retirement</summary>
+      <div class="grid">
+        <label>Monthly SIP / savings (₹ now)<input type="number" class="money" data-path="presave.sip" step="1000"><small class="hint"></small></label>
+        <label>Annual step-up %<input type="number" data-path="presave.stepUp" step="1"></label>
+      </div>
+      <p class="help">New money is split according to your target allocation. Add EPF maturity, gratuity, leave encashment, the NPS 60% lump sum or a property sale as <b>inflows</b> in section 6.</p>
+    </details>
+
+    <details>
+      <summary>5. Other income in retirement</summary>
+      <div id="incomesList"></div>
+      <p class="help">Enter pension, annuity, rent or consulting income in <b>today's ₹</b>. Each one grows at its own rate from today: use 0% for a fixed annuity (and enter its actual payout) and about 4–5% for rent. Payments continue until the year before "Until age".</p>
+    </details>
+
+    <details>
+      <summary>6. Goals &amp; one-off cash flows</summary>
+      <div id="eventsList"></div>
+      <p class="help">Examples: children's education or wedding, home renovation, replacing the car every 8–10 years, a big trip, support for parents, or an inheritance (inflow). Amounts are in today's ₹ and grow at their own inflation rate.</p>
+    </details>
+
+    <details>
+      <summary>7. Withdrawal strategy</summary>
+      <div class="grid">
+        <label>Withdrawal order
+          <select data-path="strategy.order">
+            <option value="taxefficient">Tax-efficient (FD → debt → gold → equity → tax-free)</option>
+            <option value="bucket">Bucket strategy (1 → 2 → 3)</option>
+            <option value="prorata">Pro-rata across all assets</option>
+          </select>
+        </label>
+        <label>Rebalancing
+          <select data-path="strategy.rebalance">
+            <option value="none">None</option>
+            <option value="annual">Every year</option>
+            <option value="threshold">When off target by threshold</option>
+          </select>
+        </label>
+        <label data-show="strategy.rebalance=threshold">Threshold (± % points)<input type="number" data-path="strategy.rebalanceThreshold" step="1"></label>
+      </div>
+      <div class="grid" data-show="strategy.order=bucket">
+        <label>Bucket 1: years of expenses<input type="number" data-path="strategy.bucket1Years" step="0.5"></label>
+        <label>Bucket 2: years of expenses<input type="number" data-path="strategy.bucket2Years" step="0.5"></label>
+      </div>
+      <p class="help" data-show="strategy.order=bucket">Spending comes from bucket 1. Each year bucket 1 is refilled to its target, from equity (bucket 3) in a positive year and from bucket 2 otherwise. Bucket 2 is topped up from equity only in positive years.</p>
+      <label class="check"><input type="checkbox" data-path="strategy.glideEnabled"> Glide path: reduce equity after retirement</label>
+      <div class="grid" data-show="strategy.glideEnabled=true">
+        <label>Reduce equity by (% points / yr)<input type="number" data-path="strategy.glideStep" step="0.5"></label>
+        <label>Equity floor %<input type="number" data-path="strategy.glideFloor" step="5"></label>
+      </div>
+      <label class="check"><input type="checkbox" data-path="strategy.harvestLTCG"> Harvest the ₹1.25 L tax-free equity LTCG every year (sell and rebuy)</label>
+      <div class="grid">
+        <label>Emergency fund, kept aside (₹)<input type="number" class="money" data-path="strategy.emergencyFund" step="10000"><small class="hint"></small></label>
+        <label>Legacy to leave (today's ₹)<input type="number" class="money" data-path="strategy.legacyToday" step="100000"><small class="hint"></small></label>
+      </div>
+    </details>
+
+    <details>
+      <summary>8. Tax (FY 2025-26 rules, editable)</summary>
+      <label class="check"><input type="checkbox" data-path="tax.enabled"> Model income tax</label>
+      <div class="grid">
+        <label>Regime after retirement
+          <select data-path="tax.regime"><option value="new">New regime</option><option value="old">Old regime</option></select>
+        </label>
+        <label>Marginal rate while working %<input type="number" data-path="tax.workingMarginalRate" step="1"><small>applied to portfolio income before retirement</small></label>
+        <label>Health &amp; education cess %<input type="number" data-path="tax.cessPct" step="1"></label>
+        <label>Equity LTCG rate %<input type="number" data-path="tax.ltcgRate" step="0.5"></label>
+        <label>Equity LTCG exemption ₹ / yr<input type="number" class="money" data-path="tax.ltcgExempt" step="5000"><small class="hint"></small></label>
+        <label>Other LTCG rate % (gold, REIT)<input type="number" data-path="tax.ltcgOtherRate" step="0.5"></label>
+      </div>
+      <div data-show="tax.regime=new">
+        <label class="wide">Slabs ("up to:rate%", comma separated)<textarea data-path="tax.newSlabs" rows="2"></textarea></label>
+        <div class="grid">
+          <label>Standard deduction (pension)<input type="number" data-path="tax.newStdDeduction" step="5000"></label>
+          <label>87A rebate: income limit<input type="number" data-path="tax.newRebateLimit" step="10000"></label>
+          <label>87A rebate: max ₹<input type="number" data-path="tax.newRebateMax" step="1000"></label>
+        </div>
+      </div>
+      <div data-show="tax.regime=old">
+        <label class="wide">Slabs below 60<textarea data-path="tax.oldSlabsBelow60" rows="1"></textarea></label>
+        <label class="wide">Slabs 60–79 (senior)<textarea data-path="tax.oldSlabs60to80" rows="1"></textarea></label>
+        <label class="wide">Slabs 80+ (super senior)<textarea data-path="tax.oldSlabs80plus" rows="1"></textarea></label>
+        <div class="grid">
+          <label>Standard deduction (pension)<input type="number" data-path="tax.oldStdDeduction" step="5000"></label>
+          <label>80TTB interest deduction (60+)<input type="number" data-path="tax.senior80TTB" step="5000"></label>
+          <label>Other deductions (80C, 80D…)<input type="number" data-path="tax.oldOtherDeductions" step="5000"></label>
+          <label>87A rebate: income limit<input type="number" data-path="tax.oldRebateLimit" step="10000"></label>
+          <label>87A rebate: max ₹<input type="number" data-path="tax.oldRebateMax" step="500"></label>
+        </div>
+      </div>
+      <p class="help">Not modelled: surcharge (income above ₹50 L), STCG (holdings are assumed to be over 12 months), and loss carry-forward. FD interest is taxed every year as it accrues, while debt-fund gains are taxed at slab rate only when sold. The 87A rebate does not reduce tax on LTCG.</p>
+    </details>
+
+    <details>
+      <summary>9. Simulation</summary>
+      <div class="grid">
+        <label>Mode
+          <select data-path="sim.mode"><option value="mc">Monte Carlo + fixed returns</option><option value="det">Fixed returns only</option></select>
+        </label>
+        <label>Show values in
+          <select data-path="sim.display"><option value="real">Today's ₹ (real)</option><option value="nominal">Future ₹ (nominal)</option></select>
+        </label>
+        <label data-show="sim.mode=mc">Runs<input type="number" data-path="sim.runs" min="100" max="5000" step="100"></label>
+        <label data-show="sim.mode=mc">Random seed<input type="number" data-path="sim.seed" step="1"></label>
+        <label data-show="sim.mode=mc">Equity–debt correlation<input type="number" data-path="sim.corrEqDebt" min="-0.9" max="0.9" step="0.05"></label>
+      </div>
+      <p class="help">Monte Carlo draws a random return for every asset each year from its volatility. This shows sequence-of-returns risk: a crash early in retirement does far more damage than the same crash later.</p>
+    </details>
+  </aside>
+
+  <!-- ======================= RESULTS ======================= -->
+  <section class="results">
+    <div class="resultsbar">
+      <span id="horizonInfo" class="muted"></span>
+      <label class="inline">Show values in
+        <select data-path="sim.display"><option value="real">Today's ₹</option><option value="nominal">Future ₹</option></select>
+      </label>
+    </div>
+    <div id="error" class="error" hidden></div>
+    <div id="cards" class="cards"></div>
+    <p id="modeNote" class="muted"></p>
+
+    <div class="panel">
+      <h2>Planner notes</h2>
+      <ul id="warnings" class="notes"></ul>
+    </div>
+
+    <div class="panel">
+      <h2>Corpus by asset class <small>(fixed returns)</small></h2>
+      <div id="chartArea"></div>
+    </div>
+
+    <div class="panel" id="fanPanel">
+      <h2>Range of outcomes <small>(Monte Carlo)</small></h2>
+      <div id="chartFan"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Yearly outflows vs other income</h2>
+      <div id="chartBars"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Stress tests</h2>
+      <div id="stress"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Year-by-year projection <small>(click a header to sort)</small></h2>
+      <div id="yearTable" class="tablewrap tall"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Saved scenarios</h2>
+      <div id="scenarios"></div>
+    </div>
+
+    <div class="panel checklist">
+      <h2>Checklist: what people forget before retiring</h2>
+      <div class="cols">
+        <div>
+          <h3>Health</h3>
+          <ul>
+            <li>Buy your own health cover <b>before 55</b>. Employer cover ends when you retire, and new policies carry 2–4 year waiting periods for pre-existing conditions.</li>
+            <li>Add a <b>super top-up</b> (₹25 L–₹1 Cr) on top of the base floater. It is cheap, and one hospitalisation can cost ₹10 L or more.</li>
+            <li>Plan for things insurance does not cover: OPD visits, medicines, dental, home nursing and long-term care.</li>
+            <li>Sign a <b>living will / advance directive</b> (legally valid in India since 2018) and a healthcare power of attorney.</li>
+          </ul>
+          <h3>Income &amp; products</h3>
+          <ul>
+            <li><b>SCSS</b>: ₹30 L limit <i>per person</i> at 8.2%. A couple can invest ₹60 L.</li>
+            <li><b>NPS</b> at 60: up to 60% as a tax-free lump sum, and at least 40% must buy an annuity, which is taxable and not inflation-linked.</li>
+            <li><b>EPF</b> stops earning interest once the account turns inoperative after retirement, so plan when to withdraw or move it.</li>
+            <li>Gratuity is tax-free up to ₹20 L and leave encashment up to ₹25 L (non-government employees).</li>
+            <li>Ladder your FDs and bonds so they do not all mature, and get re-invested, when rates are low.</li>
+            <li>Avoid locking money in ULIPs, endowment plans or long annuities just before retirement.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Tax &amp; paperwork</h3>
+          <ul>
+            <li>Submit <b>Form 15H</b> to banks if your total income is below the taxable limit, so TDS is not deducted.</li>
+            <li>At 75+, with only pension and interest from the same bank, you can skip filing an ITR (Sec 194P). Otherwise, keep filing.</li>
+            <li>Use the yearly ₹1.25 L equity LTCG exemption, and time debt-fund redemptions across financial years.</li>
+            <li>Consolidate bank, demat and MF accounts. Update KYC and mobile numbers so you do not lose access.</li>
+          </ul>
+          <h3>Family &amp; estate</h3>
+          <ul>
+            <li>Write a <b>will</b>, and add <b>nominations</b> on every bank account, MF folio, demat, EPF, NPS and insurance policy.</li>
+            <li>Hold accounts jointly as "either or survivor", and make sure your spouse knows every account and login.</li>
+            <li>Agree in advance how much support you will give adult children and ageing parents. It is a common hidden drain.</li>
+            <li>Term insurance is rarely needed after retirement if nobody depends on your income.</li>
+          </ul>
+          <h3>Home, lifestyle &amp; safety</h3>
+          <ul>
+            <li>Clear home loans before retiring. Budget for maintenance, society charges, property tax and making the home safe for old age.</li>
+            <li>Your house is not part of the corpus unless you plan to sell it, downsize or take a <b>reverse mortgage</b>.</li>
+            <li>The first 2–3 years of retirement are often the most expensive (travel, hobbies).</li>
+            <li>Fraud targeting retirees ("digital arrest", KYC scams) is rising. Keep only a small balance in the account linked to UPI.</li>
+            <li>Review this plan <b>every year</b>: update actual spending and returns, then rebalance.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <footer class="disclaimer">
+      This is a personal planning aid. Returns are assumptions, not guarantees. Tax rules reflect FY 2025-26 as understood at the time of writing and change with every Budget, so update them in section 8. This is not SEBI-registered investment advice.
+    </footer>
+  </section>
+</main>
+
+<script src="js/format.js"></script>
+<script src="js/defaults.js"></script>
+<script src="js/state.js"></script>
+<script src="js/tax.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/montecarlo.js"></script>
+<script src="js/solver.js"></script>
+<script src="js/insights.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

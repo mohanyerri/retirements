@@ -5,7 +5,14 @@ window.RP = window.RP || {};
   'use strict';
   const W = 820, H = 300, M = { l: 66, r: 14, t: 14, b: 28 };
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  RP.COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#9333ea', '#0891b2', '#dc2626', '#64748b', '#db2777'];
+  // Colours are CSS variables (css/styles.css) so charts follow the palette and light/dark mode.
+  RP.COLORS = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)', 'var(--c7)', 'var(--c8)'];
+  RP.THEME = {
+    primary: 'var(--c1)', navy: 'var(--c2)', saffron: 'var(--c3)', sandy: 'var(--c4)', sienna: 'var(--c5)',
+    median: 'var(--c-median)', neutral: 'var(--c-neutral)',
+    tint: (c, pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`,
+  };
+  const T = RP.THEME;
 
   function niceMax(v) {
     if (!(v > 0)) return 1;
@@ -47,7 +54,8 @@ window.RP = window.RP || {};
     return h;
   }
   function attach(el, o) { el._tip = o.tip || null; el.dataset.chart = '1'; }
-  const svg = inner => `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">${inner}</svg>`;
+  // o.animate → entrance animation: areas/lines draw in left→right, bars grow up in sequence (CSS in styles.css)
+  const svg = (inner, animate) => `<svg viewBox="0 0 ${W} ${H}" class="chart${animate ? ' anim-draw' : ''}" role="img">${inner}</svg>`;
   const legend = items => '<div class="legend">' + items.map(i =>
     `<span><i style="background:${i.color}${i.dash ? ';height:2px' : ''}"></i>${esc(i.name)}</span>`).join('') + '</div>';
   const poly = (pts, attrs) => `<polygon points="${pts.join(' ')}" ${attrs}/>`;
@@ -65,9 +73,9 @@ window.RP = window.RP || {};
     for (const { s, base: b, top } of layers) {
       const up = o.xs.map((x, k) => `${f.X(x)},${f.Y(top[k])}`);
       const dn = o.xs.map((x, k) => `${f.X(x)},${f.Y(b[k])}`).reverse();
-      paths += poly(up.concat(dn), `fill="${s.color}" fill-opacity="0.85"`);
+      paths += poly(up.concat(dn), `style="fill:${s.color}" fill-opacity="0.88"`);
     }
-    el.innerHTML = svg(f.g + paths + hoverCols(o.xs, f.X)) + legend(o.series);
+    el.innerHTML = svg(f.g + `<g class="series">${paths}</g>` + hoverCols(o.xs, f.X), o.animate) + legend(o.series);
     attach(el, o);
   }
 
@@ -75,12 +83,12 @@ window.RP = window.RP || {};
     const n = o.xs.length;
     const f = frame(o.xs[0], o.xs[n - 1], niceMax(Math.max(...o.p90, ...(o.line || [0]))), o.fmt, o.markerX);
     const pts = arr => o.xs.map((x, k) => `${f.X(x)},${f.Y(arr[k])}`);
-    const band = (lo, hi, op) => poly(pts(hi).concat(pts(lo).reverse()), `fill="#2563eb" fill-opacity="${op}"`);
-    let g = band(o.p10, o.p90, 0.15) + band(o.p25, o.p75, 0.25) + line(pts(o.p50), 'stroke="#1d4ed8" stroke-width="2.5"');
-    if (o.line) g += line(pts(o.line), 'stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4"');
-    el.innerHTML = svg(f.g + g + hoverCols(o.xs, f.X)) + legend([
-      { name: 'Median', color: '#1d4ed8' }, { name: '25th–75th percentile', color: 'rgba(37,99,235,.45)' },
-      { name: '10th–90th percentile', color: 'rgba(37,99,235,.2)' }, ...(o.line ? [{ name: 'Fixed-return projection', color: '#f59e0b', dash: true }] : []),
+    const band = (lo, hi, op) => poly(pts(hi).concat(pts(lo).reverse()), `style="fill:${T.primary}" fill-opacity="${op}"`);
+    let g = band(o.p10, o.p90, 0.16) + band(o.p25, o.p75, 0.28) + line(pts(o.p50), `style="stroke:${T.median}" stroke-width="2.5"`);
+    if (o.line) g += line(pts(o.line), `style="stroke:${T.sandy}" stroke-width="2" stroke-dasharray="6 4"`);
+    el.innerHTML = svg(f.g + `<g class="series">${g}</g>` + hoverCols(o.xs, f.X), o.animate) + legend([
+      { name: 'Median', color: T.median }, { name: '25th–75th percentile', color: T.tint(T.primary, 45) },
+      { name: '10th–90th percentile', color: T.tint(T.primary, 20) }, ...(o.line ? [{ name: 'Fixed-return projection', color: T.sandy, dash: true }] : []),
     ]);
     attach(el, o);
   }
@@ -98,12 +106,12 @@ window.RP = window.RP || {};
         const v = Math.max(0, s.values[k] || 0);
         if (v <= 0) continue;
         const y1 = f.Y(acc + v), y0 = f.Y(acc);
-        g += `<rect x="${f.X(x) - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${s.color}"/>`;
+        g += `<rect class="bar" x="${f.X(x) - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" style="fill:${s.color};--d:${Math.round(k / n * 700)}ms"/>`;
         acc += v;
       }
     });
-    if (o.line) g += line(o.xs.map((x, k) => `${f.X(x)},${f.Y(o.line.values[k])}`), `stroke="${o.line.color}" stroke-width="2.5"`);
-    el.innerHTML = svg(f.g + g + hoverCols(o.xs, f.X, 0.5)) + legend([...o.series, ...(o.line ? [o.line] : [])]);
+    const ln = o.line ? `<g class="series">${line(o.xs.map((x, k) => `${f.X(x)},${f.Y(o.line.values[k])}`), `style="stroke:${o.line.color}" stroke-width="2.5"`)}</g>` : '';
+    el.innerHTML = svg(f.g + `<g class="bars">${g}</g>` + ln + hoverCols(o.xs, f.X, 0.5), o.animate) + legend([...o.series, ...(o.line ? [o.line] : [])]);
     attach(el, o);
   }
 

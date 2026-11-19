@@ -5,20 +5,222 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Retirement Planner (India)</title>
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/bucket.css">
 </head>
 <body>
 <header class="topbar">
-  <h1>Retirement Planner <span>India</span></h1>
-  <div class="actions">
+  <h1>Retirement Planner <span class="sep" aria-hidden="true">|</span> <span class="region">India</span></h1>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="simple">Simple planner</button>
+    <button role="tab" data-tab="extensive">Extensive planner</button>
+    <button role="tab" data-tab="bucket">Bucket planner</button>
+  </nav>
+  <div class="actions" data-tab-only="extensive">
     <button id="btnSaveScenario">Save scenario</button>
-    <button id="btnExportJson">Export JSON</button>
-    <label class="btn">Import JSON<input type="file" id="fileImport" accept=".json,application/json" hidden></label>
-    <button id="btnCsv">Export CSV</button>
     <button id="btnPrint">Print / PDF</button>
     <button id="btnReset" class="danger">Reset</button>
   </div>
 </header>
 
+<!-- ======================= SIMPLE PLANNER ======================= -->
+<div id="tab-simple" class="tabpanel" hidden>
+  <div class="simple">
+    <section class="s-intro">
+      <h2>Will my money last through retirement?</h2>
+      <p class="muted">Answer 5 quick questions. Everything is in today's rupees, and your answers stay on this computer.</p>
+    </section>
+
+    <section class="s-form">
+      <label class="s-field">
+        <span class="s-q"><b>1</b> How old are you?</span>
+        <input type="number" data-spath="currentAge" min="18" max="85" step="1" inputmode="numeric">
+        <small class="s-err" data-err="currentAge"></small>
+      </label>
+      <label class="s-field">
+        <span class="s-q"><b>2</b> At what age do you want to retire?</span>
+        <input type="number" data-spath="retireAge" min="30" max="89" step="1" inputmode="numeric">
+        <small class="s-help">The age you plan to stop working. If you've already retired, enter your current age.</small>
+        <small class="s-err" data-err="retireAge"></small>
+      </label>
+      <label class="s-field">
+        <span class="s-q"><b>3</b> How much have you saved and invested so far?</span>
+        <span class="s-money"><i>₹</i><input type="number" data-spath="savings" min="0" step="10000" inputmode="numeric"></span>
+        <small class="s-hint"></small>
+        <small class="s-help">Mutual funds, shares, FDs, PPF, EPF, NPS and savings accounts. Leave out your home and jewellery.</small>
+        <small class="s-err" data-err="savings"></small>
+      </label>
+      <label class="s-field">
+        <span class="s-q"><b>4</b> How much do you save every month?</span>
+        <span class="s-money"><i>₹</i><input type="number" data-spath="monthlySaving" min="0" step="1000" inputmode="numeric"></span>
+        <small class="s-hint"></small>
+        <small class="s-help">SIPs, your EPF contribution, RDs: everything you put away each month.</small>
+        <small class="s-note" id="sSavingNote" hidden>Not used, because you're already retired.</small>
+        <small class="s-err" data-err="monthlySaving"></small>
+      </label>
+      <label class="s-field s-wide">
+        <span class="s-q"><b>5</b> What are your monthly household expenses today?</span>
+        <span class="s-money"><i>₹</i><input type="number" data-spath="monthlyExpenses" min="0" step="1000" inputmode="numeric"></span>
+        <small class="s-hint"></small>
+        <small class="s-help">Everything your household spends in a month: rent, groceries, bills, travel, school fees, insurance. Leave out EMIs that end before you retire.</small>
+        <small class="s-err" data-err="monthlyExpenses"></small>
+      </label>
+    </section>
+
+    <section id="sResults">
+      <div id="sVerdict" class="verdict"></div>
+      <div id="sCards" class="scards"></div>
+      <div id="sActions"></div>
+      <div class="panel">
+        <h2>Your savings over time <small>(today's money)</small></h2>
+        <div id="sChart"></div>
+      </div>
+      <details class="panel s-assume s-years-panel">
+        <summary>Year-by-year projection <small>(click to expand)</small></summary>
+        <div id="sYears"></div>
+      </details>
+      <details class="panel s-assume">
+        <summary>Our assumptions</summary>
+        <ul id="sAssumptions"></ul>
+      </details>
+      <div class="s-bottom">
+        <button id="btnToExtensive" class="primary">Fine-tune in Extensive planner →</button>
+        <button id="btnSimpleReset">Start over</button>
+      </div>
+      <p class="disclaimer">A planning aid, not investment advice. Returns are assumptions, not guarantees.</p>
+    </section>
+  </div>
+</div>
+
+
+<!-- ======================= BUCKET PLANNER ======================= -->
+<div id="tab-bucket" class="tabpanel" hidden>
+  <main class="layout b-layout">
+    <aside class="inputs b-inputs">
+      <div class="b-intro">
+        <h2>3-Bucket income plan</h2>
+        <p class="muted">For when withdrawals start now. Your corpus is split into three buckets, each with a job, sized to the income you need month by month.</p>
+        <button id="bPrefill" class="add">↺ Use my Simple plan numbers</button>
+      </div>
+      <details open>
+        <summary>Your retirement</summary>
+        <div class="grid">
+          <label class="b-field">Age today<input type="number" data-bpath="age" min="40" max="85" step="1"><small class="s-err" data-berr="age"></small></label>
+          <label class="b-field">Plan until age<input type="number" data-bpath="planUntil" min="50" max="105" step="1"><small class="s-err" data-berr="planUntil"></small></label>
+          <label class="b-field">Corpus available today (₹)<input type="number" data-bpath="corpus" min="0" step="100000"><small class="s-hint"></small><small class="s-err" data-berr="corpus"></small></label>
+          <label class="b-field">Monthly income needed (today's ₹)<input type="number" data-bpath="monthly" min="0" step="1000"><small class="s-hint"></small><small class="s-err" data-berr="monthly"></small></label>
+          <label class="b-field">Inflation % a year<input type="number" data-bpath="inflation" step="0.25"></label>
+        </div>
+        <div class="b-riskwrap">
+          <span class="b-risk-l">How much equity are you comfortable with?</span>
+          <div class="b-risk">
+            <button data-risk="conservative"><b>Conservative</b><span>20–40% equity</span></button>
+            <button data-risk="balanced"><b>Balanced</b><span>35–60% equity</span></button>
+            <button data-risk="growth"><b>Growth</b><span>50–75% equity</span></button>
+          </div>
+        </div>
+      </details>
+      <details>
+        <summary>Optional: pension, rent and legacy</summary>
+        <div class="grid">
+          <label class="b-field">Pension / rent per month (₹)<input type="number" data-bpath="otherIncome" min="0" step="1000"><small class="s-hint"></small></label>
+          <label class="b-field">It grows % a year<input type="number" data-bpath="otherGrowth" step="0.5"></label>
+          <label class="b-field">Leave for heirs (today's ₹)<input type="number" data-bpath="legacy" min="0" step="100000"><small class="s-hint"></small></label>
+        </div>
+      </details>
+      <details>
+        <summary>Advanced: bucket returns and refill rules</summary>
+        <div class="b-adv">
+          <div class="b-adv-h"><span></span><span>Return %</span><span>Volatility %</span><span>Fee %</span></div>
+          <div class="b-adv-r"><b>1 · Safety</b><input type="number" data-bpath="b.0.ret" step="0.25"><input type="number" data-bpath="b.0.sd" step="0.25"><input type="number" data-bpath="b.0.fee" step="0.05"></div>
+          <div class="b-adv-r"><b>2 · Income</b><input type="number" data-bpath="b.1.ret" step="0.25"><input type="number" data-bpath="b.1.sd" step="0.25"><input type="number" data-bpath="b.1.fee" step="0.05"></div>
+          <div class="b-adv-r"><b>3 · Growth</b><input type="number" data-bpath="b.2.ret" step="0.25"><input type="number" data-bpath="b.2.sd" step="0.5"><input type="number" data-bpath="b.2.fee" step="0.05"></div>
+        </div>
+        <div class="grid">
+          <label class="b-field">Check buckets
+            <select data-bpath="refillFreq"><option value="monthly">Every month</option><option value="quarterly">Every quarter</option><option value="annual">Once a year</option></select>
+          </label>
+          <label class="b-field">Refill when Safety is short by (months)<input type="number" data-bpath="refillTrigger" min="0" max="12" step="1"></label>
+          <label class="b-field">Rebalance band (%)<input type="number" data-bpath="harvestBand" min="0" step="5"><small>Growth vs Income drift allowed before rebalancing (÷4 in % points)</small></label>
+          <label class="b-field">Market scenarios per split<input type="number" data-bpath="runs" min="100" max="1000" step="50"></label>
+        </div>
+      </details>
+      <button id="bReset" class="b-reset">Reset to example</button>
+    </aside>
+
+    <section class="results b-results">
+      <div id="bResults">
+        <div id="bStatus"></div>
+        <div class="panel b-hero">
+          <div class="b-hero-h"><h2>Your 3 buckets</h2>
+            <span id="bPreviewNote" class="b-preview" hidden>Previewing another split · <button id="bBackBest" class="add">Back to recommended</button></span></div>
+          <div id="bDiagram" class="b-diagram"></div>
+        </div>
+
+        <div class="b-row2">
+          <div class="panel b-gauge-panel">
+            <h2>Return you need, every month</h2>
+            <div class="b-gauge-wrap"><div id="bGauge" class="b-gauge"></div><p id="bGaugeText" class="b-gauge-text"></p></div>
+          </div>
+          <div class="b-kpis" id="bKpis"></div>
+        </div>
+
+        <div class="panel b-opt" id="bOptWrap">
+          <h2>How we chose the split</h2>
+          <p class="muted b-note">We tested every combination of Safety (1–4 years) and Income (+3 to +10 years) against hundreds of market scenarios, with good and bad years, real tax and inflation. The number in each cell is the % chance your money lasts. Hover over a cell for details, or click it to preview that split.</p>
+          <div class="b-progress"><i id="bProgress"></i></div>
+          <p id="bOptState" class="muted b-optstate"></p>
+          <div id="bHeat" class="b-heatwrap"></div>
+          <div id="bWhy" class="b-why"></div>
+        </div>
+
+        <div id="bFixes"></div>
+
+        <div class="panel b-sim">
+          <h2>Play your retirement</h2>
+          <p class="muted b-note">Watch the buckets work month by month: income flows out of Safety, and the refill rules move money between buckets as markets rise and fall. Amounts are in today's money.</p>
+          <div class="b-scn" role="group" aria-label="Market scenario">
+            <button data-scn="typical" class="active">Typical markets</button>
+            <button data-scn="bad">Bad early years</button>
+            <button data-scn="good">Good markets</button>
+            <button data-scn="crash">2008-style crash</button>
+          </div>
+          <div id="bPlayer" class="b-player"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Bucket balances over time <small>(expected returns, today's money)</small></h2>
+          <div id="bChart"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Your first 24 months, step by step</h2>
+          <div id="bPlan"></div>
+        </div>
+
+        <div class="panel b-rules">
+          <h2>Your rules of the road</h2>
+          <div id="bRules"></div>
+        </div>
+
+        <details class="panel s-assume">
+          <summary>How this works and our assumptions</summary>
+          <ul>
+            <li><b>Liability matching:</b> Safety holds the present value of the next 1–4 years of income, discounted at its own return. Income holds the years after that. Everything else goes into Growth.</li>
+            <li><b>Required return</b> is the single monthly rate at which your corpus exactly funds your rising income until the end of the plan (plus any legacy). It is before tax and fees. The simulations include both.</li>
+            <li><b>Market scenarios:</b> yearly returns are drawn at random using each bucket's return and volatility, with equity and bonds lightly correlated. The same scenarios are used for every split, so the comparison is fair.</li>
+            <li><b>Refills:</b> checked every month. After good markets, equity is sold to refill Safety. After bad markets, Income pays instead and equity is left alone. Each year, Growth is rebalanced against Income: trimmed after rallies, and topped up after falls only while Income still holds 2 years of spending.</li>
+            <li><b>Tax:</b> new regime, FY 2025-26. FD and liquid-fund interest and debt gains are taxed at your slab rate. Equity gains above ₹1.25 L a year are taxed at 12.5%, and the tax-free gains are harvested every year.</li>
+            <li>Returns are assumptions, not guarantees. This is a planning aid, not SEBI-registered investment advice.</li>
+          </ul>
+        </details>
+      </div>
+      <div id="bToast" class="b-toast" hidden></div>
+    </section>
+  </main>
+</div>
+
+<!-- ======================= EXTENSIVE PLANNER ======================= -->
+<div id="tab-extensive" class="tabpanel" hidden>
 <main class="layout">
   <!-- ======================= INPUTS ======================= -->
   <aside class="inputs">
@@ -280,8 +482,10 @@
     </footer>
   </section>
 </main>
+</div>
 
 <script src="js/format.js"></script>
+<script src="js/anim.js"></script>
 <script src="js/defaults.js"></script>
 <script src="js/state.js"></script>
 <script src="js/tax.js"></script>
@@ -291,6 +495,9 @@
 <script src="js/insights.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/simple.js"></script>
+<script src="js/bucket.js"></script>
+<script src="js/bucket-viz.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

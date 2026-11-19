@@ -208,7 +208,7 @@ window.RP = window.RP || {};
       RP.anim.countUp(el, c[0], c[1], 'ext-card-' + el.closest('.card').querySelector('.card-t').textContent);
     });
     if (firstShow) RP.anim.stagger($('#cards'), '.card');
-    $('#modeNote').textContent = mc ? '' : 'Switch the simulation to Monte Carlo (section 9) to see the probability of success and range of outcomes.';
+    $('#modeNote').textContent = mc ? '' : 'Switch the simulation to Monte Carlo (in the Simulation section) to see the probability of success and range of outcomes.';
 
     // Warnings
     $('#warnings').innerHTML = R.warnings.map(w => `<li class="${w.level}">${esc(w.text)}</li>`).join('');
@@ -364,7 +364,7 @@ window.RP = window.RP || {};
       if (s.sim.mode === 'mc') notes.push('This table uses the fixed expected returns, not the Monte Carlo paths.');
     } else if (key === 'tax') {
       nominal = r.tax;
-      if (!d.taxOn) notes.push('Tax is turned off (section 8).');
+      if (!d.taxOn) notes.push('Tax is turned off (in the Tax section).');
       else {
         const t = d.tax.detail, cess = 1 + t.cessPct / 100;
         const items = [['FD / accrual interest', t.interest], ['Debt fund gains realised', t.slabGains], ['Pension / annuity', t.pension], ['Other taxable income', t.otherSlab]];

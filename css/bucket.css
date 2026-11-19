@@ -209,3 +209,37 @@ table.b-plan td { white-space: nowrap; }
 #bStatus:empty { display: none; }
 #bStatus .verdict { margin: 0 0 14px; }
 .b-intro { border-radius: 10px; }
+
+/* ---------- Mobile / narrow screens ---------- */
+@media (max-width: 1050px) {
+  .b-layout { grid-template-columns: 1fr; }          /* this rule must beat .b-layout's 2-column default */
+  .b-results { min-width: 0; }
+}
+@media (max-width: 700px) {
+  .b-layout { padding: 12px; gap: 12px; }
+  .b-hero-h { align-items: flex-start; }
+  /* SVG text scales down with the diagram: enlarge it so it stays readable on a phone */
+  .b-svg .b-name { font-size: 30px; }
+  .b-svg .b-amt { font-size: 44px; }
+  .b-svg .b-share { font-size: 38px; }
+  .b-svg .b-inc-l { font-size: 26px; }
+  .b-svg .b-pipe-l { display: none; }
+  .b-kpis { grid-template-columns: 1fr 1fr; }
+  .b-kpis .card { padding: 10px 12px; }
+  .b-kpis .card-v { font-size: 19px; }
+  .b-cmp { grid-template-columns: 1fr 44px; row-gap: 3px; }
+  .b-cmp span { grid-column: 1 / -1; }
+  .b-cmp .b-bar { grid-column: 1; }
+  .b-risk { grid-template-columns: 1fr; }
+  .b-risk button { flex-direction: row; justify-content: space-between; align-items: center; }
+  .b-adv-h, .b-adv-r { grid-template-columns: 74px repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .b-adv-r input { padding: 6px; font-size: 13px; }
+  .p-controls { grid-template-columns: 1fr auto; }
+  .p-controls .p-slider { grid-column: 1 / -1; grid-row: 2; }
+  .p-age { font-size: 22px; }
+  .p-ticker { min-height: 0; }
+  .b-scn button { padding: 5px 11px; font-size: 12.5px; }
+  table.b-heat td { min-width: 40px; height: 34px; font-size: 11px; }
+  table.b-heat th { font-size: 10.5px; padding: 2px 3px; }
+  .b-toast { bottom: 12px; }
+}

@@ -323,7 +323,7 @@ window.RP = window.RP || {};
       if (r.shortfall > 1) notes.push(`Your savings ran out this year. ${I(r.shortfall / p0)} of expenses (in today's money) could not be paid.`);
     } else if (col === 'start') {
       title = 'Start of year';
-      if (r.y === 0) { add('Your savings today', I(start), 'total'); notes.push('This is what you entered in question 3.'); }
+      if (r.y === 0) { add('Your savings today', I(start), 'total'); notes.push('This is what you entered as your savings so far.'); }
       else {
         add(`End of last year (age ${r.age - 1})`, I(start), 'total');
         notes.push("Each year starts where the previous one ended.");

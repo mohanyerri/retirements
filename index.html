@@ -32,25 +32,25 @@
 
     <section class="s-form">
       <label class="s-field">
-        <span class="s-q"><b>1</b> How old are you?</span>
+        <span class="s-q">How old are you?</span>
         <input type="number" data-spath="currentAge" min="18" max="85" step="1" inputmode="numeric">
         <small class="s-err" data-err="currentAge"></small>
       </label>
       <label class="s-field">
-        <span class="s-q"><b>2</b> At what age do you want to retire?</span>
+        <span class="s-q">At what age do you want to retire?</span>
         <input type="number" data-spath="retireAge" min="30" max="89" step="1" inputmode="numeric">
         <small class="s-help">The age you plan to stop working. If you've already retired, enter your current age.</small>
         <small class="s-err" data-err="retireAge"></small>
       </label>
       <label class="s-field">
-        <span class="s-q"><b>3</b> How much have you saved and invested so far?</span>
+        <span class="s-q">How much have you saved and invested so far?</span>
         <span class="s-money"><i>₹</i><input type="number" data-spath="savings" min="0" step="10000" inputmode="numeric"></span>
         <small class="s-hint"></small>
         <small class="s-help">Mutual funds, shares, FDs, PPF, EPF, NPS and savings accounts. Leave out your home and jewellery.</small>
         <small class="s-err" data-err="savings"></small>
       </label>
       <label class="s-field">
-        <span class="s-q"><b>4</b> How much do you save every month?</span>
+        <span class="s-q">How much do you save every month?</span>
         <span class="s-money"><i>₹</i><input type="number" data-spath="monthlySaving" min="0" step="1000" inputmode="numeric"></span>
         <small class="s-hint"></small>
         <small class="s-help">SIPs, your EPF contribution, RDs: everything you put away each month.</small>
@@ -58,7 +58,7 @@
         <small class="s-err" data-err="monthlySaving"></small>
       </label>
       <label class="s-field s-wide">
-        <span class="s-q"><b>5</b> What are your monthly household expenses today?</span>
+        <span class="s-q">What are your monthly household expenses today?</span>
         <span class="s-money"><i>₹</i><input type="number" data-spath="monthlyExpenses" min="0" step="1000" inputmode="numeric"></span>
         <small class="s-hint"></small>
         <small class="s-help">Everything your household spends in a month: rent, groceries, bills, travel, school fees, insurance. Leave out EMIs that end before you retire.</small>
@@ -225,7 +225,7 @@
   <!-- ======================= INPUTS ======================= -->
   <aside class="inputs">
     <details open>
-      <summary>1. Profile &amp; horizon</summary>
+      <summary>Profile &amp; horizon</summary>
       <div class="grid">
         <label>Current age<input type="number" data-path="profile.currentAge" min="18" max="100" step="1"></label>
         <label>Retirement age<input type="number" data-path="profile.retireAge" min="18" max="100" step="1"></label>
@@ -241,7 +241,7 @@
     </details>
 
     <details open>
-      <summary>2. Current corpus &amp; allocation</summary>
+      <summary>Current corpus &amp; allocation</summary>
       <div class="grid">
         <label>Input mode
           <select data-path="allocMode">
@@ -257,7 +257,7 @@
     </details>
 
     <details open>
-      <summary>3. Spending in retirement</summary>
+      <summary>Spending in retirement</summary>
       <div class="grid">
         <label>Monthly living expenses (today's ₹)<input type="number" class="money" data-path="spending.monthly" step="1000"><small class="hint"></small></label>
         <label>Inflation % / yr<input type="number" data-path="spending.inflation" step="0.25"></label>
@@ -273,28 +273,28 @@
     </details>
 
     <details>
-      <summary>4. Saving until retirement</summary>
+      <summary>Saving until retirement</summary>
       <div class="grid">
         <label>Monthly SIP / savings (₹ now)<input type="number" class="money" data-path="presave.sip" step="1000"><small class="hint"></small></label>
         <label>Annual step-up %<input type="number" data-path="presave.stepUp" step="1"></label>
       </div>
-      <p class="help">New money is split according to your target allocation. Add EPF maturity, gratuity, leave encashment, the NPS 60% lump sum or a property sale as <b>inflows</b> in section 6.</p>
+      <p class="help">New money is split according to your target allocation. Add EPF maturity, gratuity, leave encashment, the NPS 60% lump sum or a property sale as <b>inflows</b> under <b>Goals &amp; one-off cash flows</b>.</p>
     </details>
 
     <details>
-      <summary>5. Other income in retirement</summary>
+      <summary>Other income in retirement</summary>
       <div id="incomesList"></div>
       <p class="help">Enter pension, annuity, rent or consulting income in <b>today's ₹</b>. Each one grows at its own rate from today: use 0% for a fixed annuity (and enter its actual payout) and about 4–5% for rent. Payments continue until the year before "Until age".</p>
     </details>
 
     <details>
-      <summary>6. Goals &amp; one-off cash flows</summary>
+      <summary>Goals &amp; one-off cash flows</summary>
       <div id="eventsList"></div>
       <p class="help">Examples: children's education or wedding, home renovation, replacing the car every 8–10 years, a big trip, support for parents, or an inheritance (inflow). Amounts are in today's ₹ and grow at their own inflation rate.</p>
     </details>
 
     <details>
-      <summary>7. Withdrawal strategy</summary>
+      <summary>Withdrawal strategy</summary>
       <div class="grid">
         <label>Withdrawal order
           <select data-path="strategy.order">
@@ -330,7 +330,7 @@
     </details>
 
     <details>
-      <summary>8. Tax (FY 2025-26 rules, editable)</summary>
+      <summary>Tax (FY 2025-26 rules, editable)</summary>
       <label class="check"><input type="checkbox" data-path="tax.enabled"> Model income tax</label>
       <div class="grid">
         <label>Regime after retirement
@@ -366,7 +366,7 @@
     </details>
 
     <details>
-      <summary>9. Simulation</summary>
+      <summary>Simulation</summary>
       <div class="grid">
         <label>Mode
           <select data-path="sim.mode"><option value="mc">Monte Carlo + fixed returns</option><option value="det">Fixed returns only</option></select>
@@ -478,7 +478,7 @@
     </div>
 
     <footer class="disclaimer">
-      This is a personal planning aid. Returns are assumptions, not guarantees. Tax rules reflect FY 2025-26 as understood at the time of writing and change with every Budget, so update them in section 8. This is not SEBI-registered investment advice.
+      This is a personal planning aid. Returns are assumptions, not guarantees. Tax rules reflect FY 2025-26 as understood at the time of writing and change with every Budget, so update them in the <b>Tax</b> section. This is not SEBI-registered investment advice.
     </footer>
   </section>
 </main>

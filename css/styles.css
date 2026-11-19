@@ -361,3 +361,9 @@ ul.notes li:hover { transform: translateX(3px); }
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
   .s-pending { color: var(--muted); background: none; }
 }
+
+/* Brand mark (gullak) before the title */
+.topbar h1 { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.topbar h1 .brand-mark { width: 40px; height: 40px; margin: -4px 8px -4px 0; flex: none; }
+.topbar h1 .sep { margin: 0 6px; }
+@media print { .topbar h1 .brand-mark { width: 24px; height: 24px; } }

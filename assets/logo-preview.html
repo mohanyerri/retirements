@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8">
+  <title>retirements.in: logo</title>
+  <link rel="icon" href="logo-mark.svg" type="image/svg+xml">
+  <style>
+    body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1e2d36; background: #f7f6f2; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 48px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p { color: #5f6f7a; margin: 0 0 24px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .tile { border-radius: 14px; padding: 36px 24px; display: grid; place-items: center; border: 1px solid #e5e2d9; background: #fff; }
+    .tile.dark { background: #0e171c; border-color: #243540; }
+    .tile.sand { background: #f7f6f2; }
+    .tile img { max-width: 100%; height: auto; }
+    .marks { display: flex; gap: 28px; align-items: end; justify-content: center; }
+    .marks figure { margin: 0; text-align: center; font-size: 11px; color: #5f6f7a; }
+    .app { width: 96px; height: 96px; border-radius: 22px; background: #f7f6f2; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(30,45,54,.18); }
+    .app.dark { background: #15222a; }
+    ul { color: #5f6f7a; padding-left: 18px; }
+    @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>retirements.in: logo</h1>
+    <p>A terracotta <i>gullak</i> (the clay money pot almost every Indian family saves in), a saffron ₹ coin dropping in, a growth arrow rising across it, and a row of rangoli dots. Tagline: "Plan your second innings".</p>
+
+    <div class="row">
+      <div class="tile"><img src="logo.svg" alt="retirements.in logo, light"></div>
+      <div class="tile dark"><img src="logo-dark.svg" alt="retirements.in logo, dark"></div>
+    </div>
+
+    <div class="row">
+      <div class="tile sand">
+        <div class="marks">
+          <figure><img src="logo-mark.svg" width="16" height="16" alt=""><figcaption>16 px (favicon)</figcaption></figure>
+          <figure><img src="logo-mark.svg" width="32" height="32" alt=""><figcaption>32 px</figcaption></figure>
+          <figure><img src="logo-mark.svg" width="64" height="64" alt=""><figcaption>64 px</figcaption></figure>
+          <figure><div class="app"><img src="logo-mark.svg" width="72" height="72" alt=""></div><figcaption>App icon</figcaption></figure>
+          <figure><div class="app dark"><img src="logo-mark.svg" width="72" height="72" alt=""></div><figcaption>App icon, dark</figcaption></figure>
+        </div>
+      </div>
+      <div class="tile">
+        <img src="logo.svg" alt="" style="width:220px">
+      </div>
+    </div>
+
+    <ul>
+      <li><b>logo.svg</b>: full logo for light backgrounds</li>
+      <li><b>logo-dark.svg</b>: full logo for dark backgrounds</li>
+      <li><b>logo-mark.svg</b>: the gullak on its own, for the favicon, app icon and social avatar</li>
+      <li>Colours: terracotta #E76F51, saffron #E9C46A, charcoal teal #264653, persian green #2A9D8F</li>
+    </ul>
+  </div>
+</body>
+</html>

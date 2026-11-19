@@ -36,5 +36,23 @@ window.RP = window.RP || {};
   }
   function saveScenarios(list) { try { localStorage.setItem(SKEY, JSON.stringify(list)); } catch (e) { /* ignore */ } }
 
-  RP.state = { load, save, loadScenarios, saveScenarios, merge, clone };
+  const SIMPLE_KEY = 'rp.simple.v1', TAB_KEY = 'rp.tab.v1';
+  function loadSimple() {
+    const def = RP.simple ? RP.simple.SIMPLE_DEFAULTS : {};
+    try { const raw = localStorage.getItem(SIMPLE_KEY); if (raw) return merge(clone(def), JSON.parse(raw)); } catch (e) { /* ignore */ }
+    return clone(def);
+  }
+  function saveSimple(v) { try { localStorage.setItem(SIMPLE_KEY, JSON.stringify(v)); } catch (e) { /* ignore */ } }
+  function loadTab() { try { return localStorage.getItem(TAB_KEY) || 'simple'; } catch (e) { return 'simple'; } }
+  function saveTab(t) { try { localStorage.setItem(TAB_KEY, t); } catch (e) { /* ignore */ } }
+
+  const BUCKET_KEY = 'rp.bucket.v1';
+  function loadBucket() {
+    const def = RP.bucket ? RP.bucket.BUCKET_DEFAULTS : {};
+    try { const raw = localStorage.getItem(BUCKET_KEY); if (raw) { const v = merge(clone(def), JSON.parse(raw)); if (!Array.isArray(v.b) || v.b.length !== 3) v.b = clone(def.b); return v; } } catch (e) { /* ignore */ }
+    return clone(def);
+  }
+  function saveBucket(v) { try { localStorage.setItem(BUCKET_KEY, JSON.stringify(v)); } catch (e) { /* ignore */ } }
+
+  RP.state = { load, save, loadScenarios, saveScenarios, merge, clone, loadSimple, saveSimple, loadTab, saveTab, loadBucket, saveBucket };
 })(window.RP);

@@ -43,6 +43,7 @@ window.RP = window.RP || {};
     const returnsFn = (y, i) => matrix[y][i];
 
     const paths = [], dep = [], depByYear = new Array(N).fill(0);
+    const kept = o.keepPaths ? [] : null;   // [{ matrix, endBal, success }] for replaying individual paths
     let succ = 0;
     for (let r = 0; r < runs; r++) {
       for (let y = 0; y < N; y++) {
@@ -55,6 +56,7 @@ window.RP = window.RP || {};
       }
       const res = RP.engine.run(s, { light: true, returnsFn });
       paths.push(res.totals);
+      if (kept) kept.push({ matrix: matrix.map(row => row.slice()), endBal: res.endBal, endReal: res.endReal, success: res.success, depletedAge: res.depletedAge });
       for (let y = 0; y < N; y++) if (res.totals[y] <= 1) depByYear[y]++;
       if (res.success) succ++;
       if (res.depletedAge != null) dep.push(res.depletedAge);
@@ -69,7 +71,8 @@ window.RP = window.RP || {};
     }
     dep.sort((a, b) => a - b);
     return {
-      runs, N, successRate: succ / runs, bands, depletedShare: depByYear.map(c => c / runs),
+      runs, N, successRate: succ / runs, bands, depletedShare: depByYear.map(c => c / runs), paths: kept,
+      medianEndReal: percentile(paths.map(p => p[N - 1]).sort((a, b) => a - b), 0.5) / Math.pow(1 + RP.engine.num(s.spending.inflation) / 100, N),
       depletion: { count: dep.length, median: dep.length ? percentile(dep, 0.5) : null, p10: dep.length ? percentile(dep, 0.1) : null },
     };
   }

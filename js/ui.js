@@ -119,13 +119,6 @@ window.RP = window.RP || {};
     H.onChange();
   }
 
-  function download(name, text, type) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([text], { type }));
-    a.download = name; document.body.appendChild(a); a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
-  }
-
   function onClick(e) {
     const t = e.target.closest('button, th[data-sort]');
     if (!t) return;
@@ -154,10 +147,6 @@ window.RP = window.RP || {};
       const list = RP.state.loadScenarios();
       list.push({ name, savedAt: new Date().toISOString(), state: RP.state.clone(st) });
       RP.state.saveScenarios(list); renderScenarios();
-    } else if (t.id === 'btnExportJson') {
-      download('retirement-plan.json', JSON.stringify({ app: 'rp', version: 1, state: st, scenarios: RP.state.loadScenarios() }, null, 2), 'application/json');
-    } else if (t.id === 'btnCsv') {
-      download('retirement-projection.csv', toCSV(), 'text/csv');
     } else if (t.id === 'btnPrint') {
       $$('details').forEach(d => { d.dataset.wasOpen = d.open; });
       window.print();
@@ -166,28 +155,13 @@ window.RP = window.RP || {};
     }
   }
 
-  function onImport(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        const data = JSON.parse(r.result);
-        const st = data.state || data;
-        if (!st.profile || !st.assets) throw new Error('This file does not look like a retirement plan.');
-        if (Array.isArray(data.scenarios) && data.scenarios.length && confirm(`Also import ${data.scenarios.length} saved scenario(s)?`)) {
-          RP.state.saveScenarios(RP.state.loadScenarios().concat(data.scenarios));
-        }
-        H.replaceState(st);
-      } catch (err) { alert('Import failed: ' + err.message); }
-      e.target.value = '';
-    };
-    r.readAsText(file);
-  }
-
   // ---------- Results ----------
-  const card = (title, value, sub, level) =>
-    `<div class="card ${level || ''}"><div class="card-t">${esc(title)}</div><div class="card-v">${esc(value)}</div><div class="card-s">${esc(sub || '')}</div></div>`;
+  // cnt = [number, formatter]: the value counts up / glides to its new value (RP.anim.countUp)
+  let cardCounts = [];
+  const card = (title, value, sub, level, cnt) => {
+    const ci = cnt && isFinite(cnt[0]) ? cardCounts.push(cnt) - 1 : -1;
+    return `<div class="card ${level || ''}"><div class="card-t">${esc(title)}</div><div class="card-v"${ci >= 0 ? ` data-ci="${ci}"` : ''}>${esc(value)}</div><div class="card-s">${esc(sub || '')}</div></div>`;
+  };
 
   function renderResults(R) {
     last = R;
@@ -210,52 +184,63 @@ window.RP = window.RP || {};
 
     // Cards
     const gap = solve.sustainable - num(s.spending.monthly);
+    cardCounts = [];
+    const corpRet = det.corpusAtRet != null ? det.corpusAtRet / defl(yrsToRet) : null;
     const cards = [
-      card('Corpus at retirement', det.corpusAtRet != null ? f.short(det.corpusAtRet / defl(yrsToRet)) : '—', `age ${retAge} · ${unit}`),
+      card('Corpus at retirement', corpRet != null ? f.short(corpRet) : '—', `age ${retAge} · ${unit}`, '', corpRet != null && [corpRet, f.short]),
       det.depletedAge != null
-        ? card('Money lasts until', 'Age ' + f.age(det.depletedAge), `${(endAge - det.depletedAge).toFixed(1)} yrs short of age ${endAge}`, 'danger')
+        ? card('Money lasts until', 'Age ' + f.age(det.depletedAge), `${(endAge - det.depletedAge).toFixed(1)} yrs short of age ${endAge}`, 'danger', [det.depletedAge, v => 'Age ' + f.age(v)])
         : card('Money lasts until', `Age ${endAge}+`, 'the full plan horizon', 'ok'),
-      mc ? card('Probability of success', f.pct(mc.successRate, 0), `${mc.runs} market paths`, mc.successRate >= 0.85 ? 'ok' : mc.successRate >= 0.7 ? 'warn' : 'danger') : '',
-      card('Sustainable living spend', f.short(solve.sustainable) + ' / mo', `today's ₹ · ${gap >= 0 ? 'room of ' + f.short(gap) : 'cut ' + f.short(-gap)} vs your ${f.short(num(s.spending.monthly))}`, gap >= 0 ? 'ok' : 'danger'),
+      mc ? card('Probability of success', f.pct(mc.successRate, 0), `${mc.runs} market paths`, mc.successRate >= 0.85 ? 'ok' : mc.successRate >= 0.7 ? 'warn' : 'danger', [mc.successRate, v => f.pct(v, 0)]) : '',
+      card('Sustainable living spend', f.short(solve.sustainable) + ' / mo', `today's ₹ · ${gap >= 0 ? 'room of ' + f.short(gap) : 'cut ' + f.short(-gap)} vs your ${f.short(num(s.spending.monthly))}`, gap >= 0 ? 'ok' : 'danger', [solve.sustainable, v => f.short(v) + ' / mo']),
       card('Corpus needed today', solve.requiredCorpus == null ? 'Not reachable' : f.short(solve.requiredCorpus),
         solve.requiredCorpus == null ? '' : (solve.requiredCorpus > det.initialTotal ? `shortfall ${f.short(solve.requiredCorpus - det.initialTotal)}` : `surplus ${f.short(det.initialTotal - solve.requiredCorpus)}`),
-        solve.requiredCorpus != null && solve.requiredCorpus <= det.initialTotal ? 'ok' : 'warn'),
-      card('First-year withdrawal rate', f.pct(det.firstYearWR), `sustainable ≈ ${f.pct(solve.swr)} · guide 3–3.5%`, det.firstYearWR == null ? '' : det.firstYearWR > 0.045 ? 'danger' : det.firstYearWR > 0.035 ? 'warn' : 'ok'),
-      card('Earliest retirement age', solve.earliestRetireAge == null ? 'Not in horizon' : String(solve.earliestRetireAge), 'at today\'s spending'),
-      card('Corpus at end of plan', f.short(det.endBal / defl(det.N)), `age ${endAge} · ${unit}`),
-      card('Lifetime tax', f.short(det.totalTax), 'sum of nominal ₹'),
+        solve.requiredCorpus != null && solve.requiredCorpus <= det.initialTotal ? 'ok' : 'warn', solve.requiredCorpus != null && [solve.requiredCorpus, f.short]),
+      card('First-year withdrawal rate', f.pct(det.firstYearWR), `sustainable ≈ ${f.pct(solve.swr)} · guide 3–3.5%`, det.firstYearWR == null ? '' : det.firstYearWR > 0.045 ? 'danger' : det.firstYearWR > 0.035 ? 'warn' : 'ok', det.firstYearWR != null && [det.firstYearWR, v => f.pct(v)]),
+      card('Earliest retirement age', solve.earliestRetireAge == null ? 'Not in horizon' : String(solve.earliestRetireAge), 'at today\'s spending', '', solve.earliestRetireAge != null && [solve.earliestRetireAge, v => String(Math.round(v))]),
+      card('Corpus at end of plan', f.short(det.endBal / defl(det.N)), `age ${endAge} · ${unit}`, '', [det.endBal / defl(det.N), f.short]),
+      card('Lifetime tax', f.short(det.totalTax), 'sum of nominal ₹', '', [det.totalTax, f.short]),
     ];
     $('#cards').innerHTML = cards.join('');
+    const firstShow = RP.anim.entrance($('#cards'));
+    $$('#cards [data-ci]').forEach(el => {
+      const c = cardCounts[+el.dataset.ci];
+      RP.anim.countUp(el, c[0], c[1], 'ext-card-' + el.closest('.card').querySelector('.card-t').textContent);
+    });
+    if (firstShow) RP.anim.stagger($('#cards'), '.card');
     $('#modeNote').textContent = mc ? '' : 'Switch the simulation to Monte Carlo (section 9) to see the probability of success and range of outcomes.';
 
     // Warnings
     $('#warnings').innerHTML = R.warnings.map(w => `<li class="${w.level}">${esc(w.text)}</li>`).join('');
+    if (RP.anim.entrance($('#warnings'))) RP.anim.stagger($('#warnings'), 'li', 70);
+    if (RP.anim.entrance($('#allocSummary'))) RP.anim.replay($('#allocSummary .allocbar'), 'anim-grow');
 
     // Charts
     const xs = [curAge, ...det.rows.map(r => r.age + 1)];
     const areaSeries = s.assets.map((a, i) => ({ name: a.name, color: RP.COLORS[i % 8], values: [amts[i], ...det.rows.map(r => r.balances[i] / defl(r.y + 1))] }));
-    RP.charts.stackedArea($('#chartArea'), { xs, markerX: retAge, fmt: f.short, series: areaSeries, tip: k => areaTip(k, xs, areaSeries) });
+    RP.charts.stackedArea($('#chartArea'), { xs, markerX: retAge, fmt: f.short, series: areaSeries, tip: k => areaTip(k, xs, areaSeries), animate: RP.anim.entrance($('#chartArea')) });
     $('#fanPanel').hidden = !mc;
     if (mc) {
       const b = k => [tot, ...mc.bands[k].map((v, y) => v / defl(y + 1))];
       const bands = { p10: b('p10'), p25: b('p25'), p50: b('p50'), p75: b('p75'), p90: b('p90') };
       const fixedLine = [tot, ...det.rows.map(r => r.closing / defl(r.y + 1))];
-      RP.charts.fan($('#chartFan'), Object.assign({ xs, markerX: retAge, fmt: f.short, line: fixedLine, tip: k => fanTip(k, xs, bands, fixedLine) }, bands));
+      RP.charts.fan($('#chartFan'), Object.assign({ xs, markerX: retAge, fmt: f.short, line: fixedLine, tip: k => fanTip(k, xs, bands, fixedLine), animate: RP.anim.entrance($('#chartFan')) }, bands));
     }
     const fr = det.rows.filter(r => r.retired || r.goals > 0 || r.tax > 0);
     const barSeries = [
-        { name: 'Living', color: '#2563eb', values: fr.map(r => r.spend / defl(r.y)) },
-        { name: 'Medical + insurance', color: '#dc2626', values: fr.map(r => r.medical / defl(r.y)) },
-        { name: 'Goals', color: '#f59e0b', values: fr.map(r => r.goals / defl(r.y)) },
-        { name: 'Tax', color: '#64748b', values: fr.map(r => r.tax / defl(r.y)) },
+        { name: 'Living', color: RP.THEME.primary, values: fr.map(r => r.spend / defl(r.y)) },
+        { name: 'Medical + insurance', color: RP.THEME.sienna, values: fr.map(r => r.medical / defl(r.y)) },
+        { name: 'Goals', color: RP.THEME.saffron, values: fr.map(r => r.goals / defl(r.y)) },
+        { name: 'Tax', color: RP.THEME.neutral, values: fr.map(r => r.tax / defl(r.y)) },
     ];
-    const incLine = { name: 'Other income', color: '#16a34a', values: fr.map(r => r.income / defl(r.y)) };
-    RP.charts.stackedBars($('#chartBars'), { xs: fr.map(r => r.age), markerX: retAge, fmt: f.short, series: barSeries, line: incLine, tip: k => barsTip(k, fr, barSeries, incLine) });
+    const incLine = { name: 'Other income', color: RP.THEME.navy, values: fr.map(r => r.income / defl(r.y)) };
+    RP.charts.stackedBars($('#chartBars'), { xs: fr.map(r => r.age), markerX: retAge, fmt: f.short, series: barSeries, line: incLine, tip: k => barsTip(k, fr, barSeries, incLine), animate: RP.anim.entrance($('#chartBars')) });
 
     // Stress tests
     $('#stress').innerHTML = '<table class="data"><thead><tr><th>Scenario</th><th>Money lasts until</th><th>End corpus (today\'s ₹)</th><th></th></tr></thead><tbody>'
       + R.stress.map(x => `<tr><td>${esc(x.name)}</td><td>${x.depletedAge != null ? 'Age ' + f.age(x.depletedAge) : 'Age ' + x.endAge + '+'}</td><td>${f.short(x.endReal)}</td><td><span class="chip ${x.success ? 'ok' : 'danger'}">${x.success ? 'Survives' : 'Fails'}</span></td></tr>`).join('')
       + '</tbody></table>';
+    if (RP.anim.entrance($('#stress'))) RP.anim.stagger($('#stress'), 'tbody tr', 60);
 
     renderYearTable();
     renderScenarios();
@@ -467,13 +452,13 @@ window.RP = window.RP || {};
       title: 'Range of outcomes', chip: k === 0 ? 'Today' : `Age ${xs[k]}`,
       lead: k === 0 ? 'Every path starts from your corpus today.' : `Corpus when you turn ${xs[k]}, across ${mc.runs} simulated market paths.`,
       rows: [
-        { label: 'Best 10% (90th percentile)', value: f.inr(b.p90[k]), color: 'rgba(37,99,235,.25)' },
-        { label: '75th percentile', value: f.inr(b.p75[k]), color: 'rgba(37,99,235,.5)' },
-        { label: 'Median (50th)', value: f.inr(b.p50[k]), color: '#1d4ed8', cls: 'sub' },
-        { label: '25th percentile', value: f.inr(b.p25[k]), color: 'rgba(37,99,235,.5)' },
-        { label: 'Worst 10% (10th percentile)', value: f.inr(b.p10[k]), color: 'rgba(37,99,235,.25)' },
+        { label: 'Best 10% (90th percentile)', value: f.inr(b.p90[k]), color: RP.THEME.tint(RP.THEME.primary, 25) },
+        { label: '75th percentile', value: f.inr(b.p75[k]), color: RP.THEME.tint(RP.THEME.primary, 50) },
+        { label: 'Median (50th)', value: f.inr(b.p50[k]), color: RP.THEME.median, cls: 'sub' },
+        { label: '25th percentile', value: f.inr(b.p25[k]), color: RP.THEME.tint(RP.THEME.primary, 50) },
+        { label: 'Worst 10% (10th percentile)', value: f.inr(b.p10[k]), color: RP.THEME.tint(RP.THEME.primary, 25) },
         null,
-        { label: 'Fixed-return projection', value: f.inr(line[k]), color: '#f59e0b' },
+        { label: 'Fixed-return projection', value: f.inr(line[k]), color: RP.THEME.sandy },
         { label: 'Paths already out of money', value: f.pct(dep, 1), cls: dep > 0.1 ? 'bad' : '' },
       ],
       notes: [
@@ -531,12 +516,19 @@ window.RP = window.RP || {};
   function onTipOver(e) {
     const hit = e.target.closest && e.target.closest('g.col');
     const chart = hit && hit.closest('[data-chart]');
-    if (chart && chart._tip && last) {
+    if (chart && chart._tip) {
       const t = tip();
       t.innerHTML = chart._tip(+hit.dataset.k);
       t.hidden = false;
       placeTip(e);
       return;
+    }
+    // Generic hook: any container with ._cellTip(key) and cells marked td[data-tip="key"]
+    const cell = e.target.closest && e.target.closest('[data-tip]');
+    const host = cell && cell.closest('[data-tiphost]');
+    if (host && host._cellTip) {
+      const html = host._cellTip(cell.dataset.tip);
+      if (html) { const t = tip(); t.innerHTML = html; t.hidden = false; placeTip(e); return; }
     }
     const td = e.target.closest && e.target.closest('#yearTable td[data-c]');
     if (!td || !last) { if (tipEl) tipEl.hidden = true; return; }
@@ -547,14 +539,6 @@ window.RP = window.RP || {};
     t.innerHTML = explain(col, r);
     t.hidden = false;
     placeTip(e);
-  }
-
-  function toCSV() {
-    if (!last) return '';
-    const cols = yearCols();
-    const q = v => `"${String(v).replace(/"/g, '""')}"`;
-    return [cols.map(c => q(c[0])).join(',')].concat(last.det.rows.map(r => cols.map(c => Math.round(c[1](r))).join(','))).join('\n')
-      + `\n\n${q('Values in ' + (last.s.sim.display === 'real' ? "today's rupees" : 'future (nominal) rupees'))}`;
   }
 
   function renderScenarios() {
@@ -600,9 +584,8 @@ window.RP = window.RP || {};
     document.addEventListener('mouseover', onTipOver);
     document.addEventListener('mousemove', e => { if (tipEl && !tipEl.hidden) placeTip(e); });
     document.addEventListener('scroll', () => { if (tipEl) tipEl.hidden = true; }, true);
-    $('#fileImport').addEventListener('change', onImport);
   }
   function refreshAll() { renderAllLists(); populate(document); }
 
-  RP.ui = { init, refreshAll, renderResults, showError, clearError };
+  RP.ui = { init, refreshAll, renderResults, showError, clearError, tipHTML };
 })(window.RP);

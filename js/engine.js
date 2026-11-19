@@ -50,6 +50,19 @@ window.RP = window.RP || {};
    * opts.light     – skip detailed rows (Monte Carlo / solvers)
    * opts.returnsFn – (yearIndex, assetIndex) => gross annual return (fraction); overrides asset.ret
    * opts.crash     – e.g. -0.30: equity return in the first retirement year
+   * opts.shocks    – [{ year, cls, ret }]: override the return of every asset of class `cls` in plan year `year`
+   * opts.monthlyLog – record month-by-month bucket balances (months[]) and refill events (events[])
+   *
+   * Bucket strategy settings (strategy.order === 'bucket'):
+   *   bucket1Years / bucket2Years – target size of bucket 1 / 2 in years of net spending
+   *   refillFreq   – 'annual' (default, year-end) | 'quarterly' | 'monthly' (checked at month end)
+   *   refillTrigger – months: only act when bucket 1 is this many months below target (monthly/quarterly)
+   *   harvestBand  – e.g. 0.2: when growth is > target share × 1.2, move the excess to bucket 2 (good markets)
+   *   bucketRatio  – optional 0..1: target share of bucket 3 within buckets 2+3. When set, buckets 2/3 are
+   *                  rebalanced to this ratio every year end instead of the legacy "top up bucket 2" rule:
+   *                  trim growth into income when it runs ahead (lock in gains), buy growth from income after
+   *                  a fall (buy low), but never let income drop below bucketMinB2Years of spending.
+   *   bucketBand   – rebalance only when the ratio is off by more than this (fraction, default 0.05)
    */
   function run(s, opts = {}) {
     const P = s.profile, S = s.spending, St = s.strategy, T = s.tax;
@@ -166,6 +179,81 @@ window.RP = window.RP || {};
       return r;
     }
 
+    // ---- Bucket refill (time-segmentation) ----
+    const freq = St.refillFreq === 'monthly' ? 1 : St.refillFreq === 'quarterly' ? 3 : 12;
+    const b3Share0 = byBucket[2].reduce((t, i) => t + w0[i], 0);
+    const log = opts.monthlyLog ? { months: [], events: [] } : null;
+    let b3Index = 1;                 // growth index of bucket 3, for the trailing-12-month market signal
+    const b3Hist = [];
+    const totG = g => { let t = 0; for (const i of g) t += bal[i]; return t; };
+    const logEvent = (mAbs, type, from, to, amount, marketRet) => {
+      if (log && amount > 0.5) log.events.push({ m: mAbs, age: curAge + mAbs / 12, type, from, to, amount, marketRet });
+    };
+
+    /** Refill buckets. annualNeed = next 12 months' net spending; good = markets up over the last 12 months. */
+    function refillBuckets(annualNeed, good, marketRet, mAbs, trigger) {
+      if (!byBucket[0].length) return;
+      const b1T = annualNeed * num(St.bucket1Years, 2), b2T = annualNeed * num(St.bucket2Years, 5);
+      const d1 = b1T - totG(byBucket[0]);
+      if (d1 > Math.max(0, trigger)) {
+        if (good) {
+          const fromB3 = withdrawGroups([byBucket[2]], d1);
+          logEvent(mAbs, 'refill', 3, 1, fromB3, marketRet);
+          const rest = withdrawGroups([byBucket[1]], d1 - fromB3);
+          logEvent(mAbs, 'refill', 2, 1, rest, marketRet);
+          deposit(fromB3 + rest, byBucket[0]);
+        } else {
+          const fromB2 = withdrawGroups([byBucket[1]], d1);
+          logEvent(mAbs, 'protect', 2, 1, fromB2, marketRet);
+          const rest = withdrawGroups([byBucket[2]], d1 - fromB2);
+          logEvent(mAbs, 'refill', 3, 1, rest, marketRet);
+          deposit(fromB2 + rest, byBucket[0]);
+        }
+      }
+      if (num(St.bucketRatio) > 0) return;   // buckets 2/3 handled by rebalanceRatio() at year end
+      if (good && byBucket[1].length) {
+        const d2 = b2T - totG(byBucket[1]);
+        if (d2 > Math.max(0, trigger)) {
+          const got = withdrawGroups([byBucket[2]], d2);
+          logEvent(mAbs, 'refill', 3, 2, got, marketRet);
+          deposit(got, byBucket[1]);
+        }
+        const band = num(St.harvestBand);
+        if (band > 0 && b3Share0 > 0) {
+          const total = sum(bal), b3 = totG(byBucket[2]);
+          const excess = b3 - b3Share0 * total;
+          if (b3 > b3Share0 * total * (1 + band) && excess > 0) {
+            const got = withdrawGroups([byBucket[2]], excess);
+            logEvent(mAbs, 'harvest', 3, 2, got, marketRet);
+            deposit(got, byBucket[1]);
+          }
+        }
+      }
+    }
+
+    /** Year-end: keep growth at its target share of (income + growth). */
+    function rebalanceRatio(annualNeed, mAbs, marketRet) {
+      const rho = num(St.bucketRatio);
+      if (!(rho > 0) || !byBucket[1].length || !byBucket[2].length) return;
+      const b2 = totG(byBucket[1]), b3 = totG(byBucket[2]), pool = b2 + b3;
+      if (pool <= 0) return;
+      const band = St.bucketBand != null ? num(St.bucketBand) : 0.05;
+      const share = b3 / pool;
+      if (share > rho + band) {
+        const got = withdrawGroups([byBucket[2]], (share - rho) * pool);
+        logEvent(mAbs, 'harvest', 3, 2, got, marketRet);
+        deposit(got, byBucket[1]);
+      } else if (share < rho - band) {
+        const floor = num(St.bucketMinB2Years != null ? St.bucketMinB2Years : 2) * annualNeed;
+        const amt = Math.min((rho - share) * pool, Math.max(0, b2 - floor));
+        if (amt > 0) {
+          const got = withdrawGroups([byBucket[1]], amt);
+          logEvent(mAbs, 'buydip', 2, 3, got, marketRet);
+          deposit(got, byBucket[2]);
+        }
+      }
+    }
+
     const rows = opts.light ? null : [];
     const totals = [];
     let depletedAge = null, shortfallTotal = 0, corpusAtRet = null, firstYearWR = null, firstYearNeedAnnual = null;
@@ -181,6 +269,7 @@ window.RP = window.RP || {};
 
       let rates = A.map((a, i) => (opts.returnsFn ? opts.returnsFn(y, i) : num(a.ret) / 100));
       if (opts.crash != null && age === Math.max(retAge, curAge)) rates = rates.map((r, i) => (isEq[i] ? opts.crash : r));
+      if (opts.shocks) for (const sh of opts.shocks) if (sh.year === y) rates = rates.map((r, i) => (A[i].cls === sh.cls ? sh.ret : r));
       rates = rates.map((r, i) => r - num(A[i].fee) / 100);
       const mRate = rates.map(r => Math.pow(1 + Math.max(r, -0.99), 1 / 12) - 1);
 
@@ -212,12 +301,38 @@ window.RP = window.RP || {};
         }
         if (sipM > 0) { const d = deposit(sipM); yContrib += d; ySip += d; }
         const net = needM - inc.total;
+        let paidM = 0, shortM = 0;
         if (net > 0) {
           const got = withdraw(net);
+          paidM = got;
           yWithdrawn += got; ySpendW += got;
-          if (net - got > 1e-6) yShort += net - got;
+          if (net - got > 1e-6) { yShort += net - got; shortM = net - got; }
+          const wasDepleted = depletedAge !== null;
           markShort(m);
+          if (!wasDepleted && depletedAge !== null) logEvent(y * 12 + m, 'depleted', 0, 0, shortM, 0);
         } else if (net < 0) ySurplus += deposit(-net);
+
+        // bucket-3 market signal (trailing 12 months)
+        if (St.order === 'bucket') {
+          let w = 0, r = 0;
+          for (const i of byBucket[2]) { w += bal[i]; r += bal[i] * mRate[i]; }
+          b3Index *= 1 + (w > 0 ? r / w : 0);
+          b3Hist.push(b3Index);
+          if (freq < 12 && (m + 1) % freq === 0 && age + 1 >= retAge) {
+            const mAbs = y * 12 + m;
+            const back = b3Hist[Math.max(0, b3Hist.length - 13)];
+            const trail = b3Index / back - 1;
+            const nextAge = m === 11 ? age + 1 : age;
+            const nn = needAt(nextAge), ni = incomeAt(nextAge);
+            const annualNeed = Math.max(0, (nn.spend + nn.med + nn.prem - ni.total) * 12);
+            refillBuckets(annualNeed, trail >= 0, trail, mAbs, num(St.refillTrigger) * annualNeed / 12);
+            if (m === 11) rebalanceRatio(annualNeed, mAbs, trail);
+          }
+        }
+        if (log) {
+          const bs = byBucket.map(g => totG(g));
+          log.months.push({ m: y * 12 + m, age: age + (m + 1) / 12, b1: bs[0], b2: bs[1], b3: bs[2], total: sum(bal), paid: paidM, short: shortM });
+        }
       }
       for (let i = 0; i < nA; i++) if (ttype[i] === 'slabAccrual') gains.slabAccrual += growth[i];
 
@@ -249,21 +364,14 @@ window.RP = window.RP || {};
 
       // ---- Bucket refill or rebalancing ----
       if (St.order === 'bucket') {
-        if (age + 1 >= retAge && byBucket[0].length) {
+        if (freq === 12 && age + 1 >= retAge && byBucket[0].length) {
           const nn = needAt(age + 1), ni = incomeAt(age + 1);
           const annual = Math.max(0, (nn.spend + nn.med + nn.prem - ni.total) * 12);
-          const b1T = annual * num(St.bucket1Years, 2), b2T = annual * num(St.bucket2Years, 5);
           let b3w = 0, b3r = 0;
           byBucket[2].forEach(i => { b3w += openBal[i]; b3r += openBal[i] * rates[i]; });
-          const goodYear = b3w > 0 ? b3r / b3w > 0 : false;
-          const tot = g => sum(g.map(i => bal[i]));
-          const d1 = b1T - tot(byBucket[0]);
-          if (d1 > 0) {
-            const src = goodYear ? [byBucket[2], byBucket[1]] : [byBucket[1], byBucket[2]];
-            deposit(withdrawGroups(src, d1), byBucket[0]);
-          }
-          const d2 = b2T - tot(byBucket[1]);
-          if (d2 > 0 && goodYear && byBucket[1].length) deposit(withdrawGroups([byBucket[2]], d2), byBucket[1]);
+          const yr = b3w > 0 ? b3r / b3w : 0;
+          refillBuckets(annual, b3w > 0 ? yr > 0 : false, yr, y * 12 + 11, 0);
+          rebalanceRatio(annual, y * 12 + 11, yr);
         }
       } else if (St.rebalance && St.rebalance !== 'none') {
         rebalance();
@@ -301,6 +409,7 @@ window.RP = window.RP || {};
       totalTax, endBal, endReal: endBal / Math.pow(1 + inf, N), legacyNominal,
       success: shortfallTotal < 1 && endBal >= legacyNominal - 1,
       inflation: inf, startAge: curAge, initialAmounts: amounts, initialTotal: sum(amounts), eq0,
+      months: log ? log.months : null, events: log ? log.events : null,
     };
   }
 

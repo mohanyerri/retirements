@@ -124,6 +124,100 @@ window.RP = window.RP || {};
     assert(r.depletedAge != null && r.depletedAge < 62, 'cash runs out first');
   });
 
+  // ---------- Simple planner ----------
+  const SM = { currentAge: 40, retireAge: 60, savings: 2000000, monthlySaving: 30000, monthlyExpenses: 60000 };
+
+  test('Simple → full plan: 50/30/20 mix, corpus, all expenses at 6% inflation, plan to 90', () => {
+    const s = RP.simple.toFullState(SM);
+    const w = RP.engine.baseWeights(s, RP.engine.initialAmounts(s));
+    close(w[0], 0.5, 1e-9); close(w[1], 0.3, 1e-9); close(w[2], 0.2, 1e-9);
+    close(s.totalCorpus, 2000000, 0); close(RP.engine.initialAmounts(s).reduce((a, b) => a + b, 0), 2000000, 1e-6);
+    close(s.spending.monthly, 60000, 1e-9); close(s.spending.medicalMonthly, 0, 0); close(s.spending.inflation, 6, 0);
+    close(s.presave.sip, 30000, 0); assert(s.profile.planUntil === 90, 'planUntil');
+  });
+
+  test('Simple validation: missing expenses and retire age ≥ 90 are flagged; already-retired is allowed', () => {
+    const e = RP.simple.validate(Object.assign({}, SM, { monthlyExpenses: 0, retireAge: 95 }));
+    assert(e.monthlyExpenses && e.retireAge, 'should flag both');
+    assert(Object.keys(RP.simple.validate(Object.assign({}, SM, { currentAge: 65, retireAge: 60 }))).length === 0, 'retired ok');
+    assert(Object.keys(RP.simple.validate(SM)).length === 0, 'defaults valid');
+  });
+
+  test('Simple "save more" solver puts the plan at ≥ 8 in 10; 3% less does not', () => {
+    const sm = Object.assign({}, SM, { monthlyExpenses: 120000 });
+    const need = RP.simple.requiredSaving(sm, 150);
+    assert(need != null && need > SM.monthlySaving, 'need more saving, got ' + need);
+    assert(RP.simple.chance(Object.assign({}, sm, { monthlySaving: need }), 150) >= 0.8, 'need should meet target');
+    assert(RP.simple.chance(Object.assign({}, sm, { monthlySaving: need * 0.97 }), 150) < 0.8, '97% of need should miss');
+  });
+
+  test('Simple "comfortable spend" and "retire later" solvers hit the 8-in-10 boundary', () => {
+    const c = RP.simple.comfortableExpenses(SM, 150);
+    assert(RP.simple.chance(Object.assign({}, SM, { monthlyExpenses: c }), 150) >= 0.8, 'comfortable should meet');
+    assert(RP.simple.chance(Object.assign({}, SM, { monthlyExpenses: c * 1.03 }), 150) < 0.8, '3% more should miss');
+    const sm = Object.assign({}, SM, { monthlyExpenses: 120000 });
+    const a = RP.simple.earliestRetireAge(sm, 150);
+    assert(a != null && a > 60, 'should need later retirement, got ' + a);
+    assert(RP.simple.chance(Object.assign({}, sm, { retireAge: a }), 150) >= 0.8 && RP.simple.chance(Object.assign({}, sm, { retireAge: a - 1 }), 150) < 0.8, 'boundary');
+  });
+
+  test('Simple "start with" solver: that lump sum today reaches 8 in 10; 3% less does not', () => {
+    const sm = Object.assign({}, SM, { monthlyExpenses: 120000 });
+    const start = RP.simple.requiredStartSavings(sm, 150);
+    assert(start != null && start > sm.savings, 'need more savings, got ' + start);
+    assert(RP.simple.chance(Object.assign({}, sm, { savings: start }), 150) >= 0.8, 'start should meet target');
+    assert(RP.simple.chance(Object.assign({}, sm, { savings: start * 0.97 }), 150) < 0.8, '97% should miss');
+  });
+
+  test('Copy to Extensive gives the same projection as the Simple tab', () => {
+    const a = RP.engine.run(RP.simple.toFullState(SM)), b = RP.engine.run(RP.simple.toFullState(SM, { forExtensive: true }));
+    close(b.endBal, a.endBal, Math.max(10, a.endBal * 1e-6), 'end balance');
+    close(b.corpusAtRet, a.corpusAtRet, Math.max(10, a.corpusAtRet * 1e-6), 'corpus at retirement');
+    assert(String(a.depletedAge) === String(b.depletedAge), 'depletion age');
+  });
+
+  // ---------- Bucket planner ----------
+  if (RP.bucket) {
+    const BK = () => JSON.parse(JSON.stringify(RP.bucket.BUCKET_DEFAULTS));
+
+    test('Bucket required return: level ₹50k/month for 25 yrs priced at 0.5%/month → solver returns 0.5%', () => {
+      const b = Object.assign(BK(), { age: 60, planUntil: 85, inflation: 0, monthly: 50000, otherIncome: 0, legacy: 0 });
+      b.corpus = 50000 * (1 - Math.pow(1.005, -300)) / 0.005;
+      const rr = RP.bucket.requiredReturn(b);
+      close(rr.monthly, 0.005, 1e-7, 'monthly rate');
+    });
+
+    test('Bucket sizing: buckets add up to the corpus; Safety = PV of its months at its own rate', () => {
+      const b = Object.assign(BK(), { inflation: 0, monthly: 50000, corpus: 20000000, risk: 'growth' });
+      const sz = RP.bucket.size(b, 2, 8);
+      close(sz.B1 + sz.B2 + sz.B3, b.corpus, 1e-6, 'sum');
+      const r1 = Math.pow(1 + (b.b[0].ret - b.b[0].fee) / 100, 1 / 12) - 1;
+      close(sz.B1, 50000 * (1 - Math.pow(1 + r1, -24)) / r1, 1e-6, 'B1');
+      const r2 = Math.pow(1 + (b.b[1].ret - b.b[1].fee) / 100, 1 / 12) - 1;
+      close(sz.B2 - sz.capped, 50000 * (Math.pow(1 + r2, -24) - Math.pow(1 + r2, -96)) / r2, 1e-6, 'B2 (excess above equity cap is parked here separately)');
+    });
+
+    test('Monthly bucket engine conserves money and never sells equity to refill Safety in a falling market', () => {
+      const b = BK(), sz = RP.bucket.size(b, 2, 8);
+      const r = RP.engine.run(RP.bucket.toState(b, sz), { monthlyLog: true, shocks: [{ year: 1, cls: 'equity', ret: -0.45 }] });
+      r.rows.forEach(row => close(row.opening + row.contrib + row.d.surplus + row.growth - row.withdrawn, row.closing, Math.max(1, row.closing * 1e-9), 'age ' + row.age));
+      assert(r.months.length === r.N * 12, 'monthly log length');
+      const bad = r.events.filter(ev => ev.from === 3 && ev.to === 1 && ev.marketRet < 0);
+      assert(bad.length === 0, 'equity sold in a down market: ' + bad.length);
+      assert(r.events.some(ev => ev.type === 'protect'), 'Income should protect Safety during the crash');
+    });
+
+    test('Bucket optimiser: same answer every time, within risk limits, within 1 point of the best split', () => {
+      const b = Object.assign(BK(), { runs: 60 });
+      const a1 = RP.bucket.optimise(b, 60), a2 = RP.bucket.optimise(b, 60);
+      assert(a1.best && a2.best && a1.best.N1 === a2.best.N1 && a1.best.gap === a2.best.gap, 'not reproducible');
+      const lim = RP.bucket.RISK_LIMITS[b.risk];
+      assert(a1.best.sz.shares[2] <= lim.max + 1e-9 && a1.best.sz.inRange, 'outside risk limits');
+      const top = Math.max(...a1.cells.filter(x => x.sz.valid && x.sz.inRange).map(x => x.res.success));
+      assert(a1.best.res.success >= top - 0.01 - 1e-9, 'not near the best');
+    });
+  }
+
   RP.testResults = results;
   if (typeof document !== 'undefined' && document.getElementById('out')) {
     const pass = results.filter(r => r.ok).length;
